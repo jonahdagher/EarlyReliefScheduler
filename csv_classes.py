@@ -44,7 +44,7 @@ class Schedule():
         self.bottom_bound = self.getBottomBound()
         self.right_bound = self.getRightBound()
 
-        self.year_month = self.getRevisedDate()[:7]
+        self.year_month = None
 
         self.all_colors = {
             "rgb": set(),
@@ -180,73 +180,10 @@ class Schedule():
         else:
             return "#808080"
         
-import pandas as pd
 
-import pandas as pd
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
-def times_days_to_df(
-    time_dict: dict,
-    times=("330", "530", "730", "930"),
-    days_in_order=None,
-    days_per_row=5,
-    day_spacer_col=True,
-    block_spacer_row=True,
-):
-
-    # infer days if not provided: union of all time_dict[time] keys
-    if days_in_order is None:
-        day_set = set()
-        for t in times:
-            day_set |= set(time_dict.get(t, {}).keys())
-        days_in_order = sorted(day_set)
-
-    day_panels = []
-    for day in days_in_order:
-        # Build one day panel: 4 columns (one per time)
-        cols = {}
-        max_len = 0
-
-        # pull lists + compute max height for this day
-        for t in times:
-            items = time_dict.get(t, {}).get(day, [])
-            if items is None:
-                items = []
-            if not isinstance(items, list):
-                items = [str(items)]
-            cols[t] = items
-            max_len = max(max_len, len(items))
-
-        # pad all time columns to same length
-        for t in times:
-            cols[t] = cols[t] + [""] * (max_len - len(cols[t]))
-
-        panel = pd.DataFrame(cols)
-
-        # rename columns to include day label so they’re unique
-        panel.columns = [f"{day} {t}" for t in times]
-
-        # optional spacer column after each day panel
-        if day_spacer_col:
-            panel[f"{day} _"] = [""] * len(panel)
-
-        day_panels.append(panel)
-
-    # now pack 5 day-panels per horizontal block, then stack blocks vertically
-    blocks = []
-    for i in range(0, len(day_panels), days_per_row):
-        block = pd.concat(day_panels[i:i+days_per_row], axis=1)
-        blocks.append(block)
-
-    if not blocks:
-        return pd.DataFrame()
-
-    out = blocks[0]
-    for b in blocks[1:]:
-        if block_spacer_row:
-            blank_row = pd.DataFrame({c: [""] for c in out.columns})
-            out = pd.concat([out, blank_row, b], ignore_index=True)
-        else:
-            out = pd.concat([out, b], ignore_index=True)
-
-    return out
-
+def previous_year_month(iso_year_month: str) -> str:
+    dt = datetime.strptime(iso_year_month, "%Y-%m")
+    return (dt - relativedelta(months=1)).strftime("%Y-%m")
