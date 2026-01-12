@@ -87,6 +87,18 @@ try:
     remove_provider_dates_by_month(session, schedule.year_month)
 
     VALID_TIMES = get_group("settings.json", "VALID_TIMES")
+    provider_schedules = schedule.getProviderSchedules()
+
+    detected_values = set()
+
+    for provider in provider_schedules:
+        sched = provider_schedules[provider]
+        for entry in sched.schedule:
+            if entry.value != None and "-" in str(entry.value):
+                detected_values.add(entry.value)
+
+    VALID_TIMES += list(detected_values)
+
 
     for provider_name, days in schedule.getProviderSchedules().items():
 
@@ -230,10 +242,10 @@ try:
     for day in all_days:
         working_930 = get_provider_names_working_time_on_day(session, day, "930")
         time_dict["930"][day] = working_930
-    
+
     current_month_saved = session.scalar(select(PreviousRankings
-                          ).where(PreviousRankings.year_month == schedule.year_month))
-    
+                            ).where(PreviousRankings.year_month == schedule.year_month))
+
     if current_month_saved:
         current_month_saved.ranking_lists = {
             "730" : ranking_730,
@@ -263,6 +275,7 @@ try:
     row = 0
     row_number = 0
     chunk_width = 3
+    max_length = 0
 
     for i, day in enumerate(all_days):
         list_530 = time_dict["530"].get(day, [])
@@ -271,11 +284,28 @@ try:
         list_930 = time_dict["930"].get(day, [])
         j = (i*chunk_width) - (15*row_number)
 
+        header_330 = ["[3:30]"] if len(list_330) > 0 else []
+        header_930 = ["[9:30]"] if len(list_930) > 0 else []
 
-        list_530_330 = [day, ""] + list_530 + [""] + list(list_330)
-        list_730_930 = ["", ""] + list_730 + [""] + list(list_930)
+        regular_valid_times = get_group("settings.json", "VALID_TIMES") + ["OFF"]
 
-        max_length = max((len(list_530_330), len(list_730_930)))
+        special_shifts = session.execute(
+            select(Provider.name,
+                   ProviderDate.value
+                   ).join(ProviderDate
+                          ).where(ProviderDate.value.not_in(regular_valid_times), ProviderDate.date == day)
+                          ).all()
+        
+        special_shifts = [shift[0] + f" ({shift[1]})" for shift in special_shifts]
+        
+        
+        header_special = ["[Other Shifts]"] if special_shifts else []
+        
+
+        list_530_330 = [day, ""] + ["[5:30]"] + list_530 + [""] + header_330 + list(list_330)
+        list_730_930 = ["", ""] + ["[7:30]"] + list_730 + [""] + header_930 + list(list_930) + header_special + special_shifts
+
+        max_length = max(len(list_530_330), len(list_730_930), max_length)
 
         for k, name in enumerate(list_530_330):
             k = k + row
@@ -288,8 +318,9 @@ try:
         if (i+1) % 5 == 0 and i != 0:
             row_number += 1
             row += max_length + 1
+            max_length = 0
 
     st.dataframe(df)
 
-except:
+except TypeError:
     st.warning("Please select a valid date")
